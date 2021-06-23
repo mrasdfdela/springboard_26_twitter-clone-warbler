@@ -10,10 +10,11 @@
     <form method="POST" id="user_form">
       {{ form.hidden_tag() }}
 
-      {% for field in form if field.widget.input_type != 'hidden' %}
+      {% for field in form if (field.id != "csrf_token" and field.id != "header_image_url" and field.id != "bio") %}
         {% for error in field.errors %}
           <span class="text-danger">{{ error }}</span>
         {% endfor %}
+        {{ field.id }}
         {{ field(placeholder=field.label.text, class="form-control") }}
       {% endfor %}
 
