@@ -112,7 +112,10 @@ def login():
 @app.route('/logout')
 def logout():
     """Handle logout of user."""
-
+    if CURR_USER_KEY in session:
+        del session[CURR_USER_KEY]
+        flash("You have been logged out.", "danger")
+    return redirect("/")
     # IMPLEMENT THIS
 
 
@@ -285,14 +288,11 @@ def messages_destroy(message_id):
 
 @app.route('/')
 def homepage():
-    import pdb
-    pdb.set_trace()
     """Show homepage:
 
     - anon users: no messages
     - logged in: 100 most recent messages of followed_users
     """
-
     if g.user:
         messages = (Message
                     .query
