@@ -32,7 +32,8 @@ connect_db(app)
 @app.before_request
 def add_user_to_g():
     """If we're logged in, add curr user to Flask global."""
-
+    import pdb
+    pdb.set_trace()
     if CURR_USER_KEY in session:
         g.user = User.query.get(session[CURR_USER_KEY])
 
@@ -313,11 +314,13 @@ def homepage():
     - logged in: 100 most recent messages of followed_users
     """
     if g.user:
+        user = User.query.get(g.user.id)
+        following = [ u.id for u in user.following ]
         messages = (Message
                     .query
+                    .filter(Message.user_id.in_(following))
                     .order_by(Message.timestamp.desc())
-                    .limit(100)
-                    .all())
+                    .limit(100))
 
         return render_template('home.html', messages=messages)
 
