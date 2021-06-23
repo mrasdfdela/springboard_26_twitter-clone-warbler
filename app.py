@@ -5,7 +5,7 @@ from flask_debugtoolbar import DebugToolbarExtension
 from sqlalchemy.exc import IntegrityError
 
 from forms import UserAddForm, LoginForm, MessageForm
-from models import db, connect_db, User, Message
+from models import db, connect_db, User, Message, Likes
 
 CURR_USER_KEY = "curr_user"
 
@@ -32,8 +32,6 @@ connect_db(app)
 @app.before_request
 def add_user_to_g():
     """If we're logged in, add curr user to Flask global."""
-    import pdb
-    pdb.set_trace()
     if CURR_USER_KEY in session:
         g.user = User.query.get(session[CURR_USER_KEY])
 
@@ -145,7 +143,6 @@ def users_show(user_id):
     """Show user profile."""
 
     user = User.query.get_or_404(user_id)
-
     # snagging messages in order from the database;
     # user.messages won't be in order by default
     messages = (Message
@@ -154,7 +151,8 @@ def users_show(user_id):
                 .order_by(Message.timestamp.desc())
                 .limit(100)
                 .all())
-    return render_template('users/show.html', user=user, messages=messages)
+    likes = Likes.query.filter(Likes.user_id==user.id).all()
+    return render_template('users/show.html', user=user, messages=messages, likes=likes)
 
 
 @app.route('/users/<int:user_id>/following')
@@ -165,8 +163,9 @@ def show_following(user_id):
         flash("Access unauthorized.", "danger")
         return redirect("/")
 
+    likes = Likes.query.filter(Likes.user_id==user_id).all()
     user = User.query.get_or_404(user_id)
-    return render_template('users/following.html', user=user)
+    return render_template('users/following.html', user=user, likes=likes)
 
 
 @app.route('/users/<int:user_id>/followers')
@@ -176,9 +175,9 @@ def users_followers(user_id):
     if not g.user:
         flash("Access unauthorized.", "danger")
         return redirect("/")
-
+    likes = Likes.query.filter(Likes.user_id==user_id).all()
     user = User.query.get_or_404(user_id)
-    return render_template('users/followers.html', user=user)
+    return render_template('users/followers.html', user=user, likes=likes)
 
 
 @app.route('/users/follow/<int:follow_id>', methods=['POST'])
@@ -209,6 +208,41 @@ def stop_following(follow_id):
     db.session.commit()
 
     return redirect(f"/users/{g.user.id}/following")
+
+
+@app.route('/users/add_like/<int:msg_id>', methods=['POST'])
+def add_like(msg_id):
+
+    msg = Message.query.get_or_404(msg_id)
+    if msg.user_id != g.user.id:
+        like = Likes.query.filter(
+          Likes.user_id==g.user.id,
+          Likes.message_id==msg_id
+        )
+        if len(like.all())>0:
+            like.delete()
+        else:
+            new_like = Likes(user_id=g.user.id, message_id=msg_id)
+            db.session.add(new_like)
+        db.session.commit()
+
+    else:
+        flash('Invalid selection! Cannot like own warbles!')
+    return redirect('/')
+
+
+@app.route('/users/<int:user_id>/likes')
+def show_likes(user_id):
+    user = User.query.get_or_404(user_id)
+    likes = Likes.query.filter(Likes.user_id==user_id).all()
+    msg_ids = [ like.message_id for like in likes ]
+    messages = (Message
+                .query
+                .filter(Message.id.in_(msg_ids))
+                .order_by(Message.timestamp.desc())
+                .limit(100)
+                .all())
+    return render_template('/users/show_likes.html',user=user, messages=messages, likes=likes)
 
 
 @app.route('/users/profile', methods=["GET", "POST"])
@@ -321,8 +355,9 @@ def homepage():
                     .filter(Message.user_id.in_(following))
                     .order_by(Message.timestamp.desc())
                     .limit(100))
-
-        return render_template('home.html', messages=messages)
+        likes = Likes.query.filter(Likes.user_id==g.user.id)
+        msg_likes = [like.message_id for like in likes]
+        return render_template('home.html', messages=messages, likes=msg_likes)
 
     else:
         return render_template('home-anon.html')
