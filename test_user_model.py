@@ -8,6 +8,8 @@
 import os
 from unittest import TestCase
 
+from sqlalchemy.exc import IntegrityError
+
 from models import db, User, Message, Follows
 from test_helper import addUsers
 
@@ -69,18 +71,24 @@ class UserModelCreateTestCase(TestCase):
         self.assertEqual(user2.is_followed_by(user1), True)
     
     def test_user_model_create(self):
-        """Does the signup function work?"""
-        valid_credentials = {"testuser","test@test.com","HASHED_PASSWORD","/static/images/default-pic.png"}
-        invalid_credentials = {"testuser","CODED_PASSWORD","trial@trial.com","/static/images/default-pic.png"}
+        def valid_user():
+            User.signup(
+              username="valid_testuser",
+              password="HASHED_PASSWORD",
+              email="test@test.com",
+              image_url=User.image_url.default.arg
+            )
+            db.session.commit()
+        
+        def invalid_user():
+            User.signup(
+              username="valid_testuser",
+              password="CODED_PASSWORD",
+              email="invalid_email",
+              image_url=User.image_url.default.arg
+            )
 
-        import pdb
-        pdb.set_trace()
-        User.signup(*valid_credentials)
-
-        # def signup(credentials):
-        #     u = User.signup(*credentials)
-        #     db.session.commit()
-        # self.assertRaises(ValueError,signup(valid_credentials))
-        # self.assertRaises(ValueError,signup(valid_credentials))
-        # import pdb
-        # pdb.set_trace()
+        with valid_user():
+            self.assertTrue(User.query.first().username == 'valid_testuser')
+        # with self.assertRaises(IntegrityError, db.session.commit()):
+        #   invalid_user()
