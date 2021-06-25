@@ -72,6 +72,17 @@ class MessageViewTestCase(TestCase):
             msg = Message.query.one()
             self.assertEqual(msg.text, "Hello")
 
+            """Logout and add message -> access denied"""            
+            c.get('/logout')
+            new_resp = c.get("/messages/new",follow_redirects=True)
+            html = new_resp.get_data(as_text=True)
+            self.assertEqual(new_resp.status_code, 200)
+            self.assertIn('Access unauthorized', html)
+
+            post_resp = c.post("/messages/new", follow_redirects=True)
+            html = post_resp.get_data(as_text=True)
+            self.assertIn('Access unauthorized', html)
+
     def test_add_message_redirect(self):
         """Will new adding a message redirect?"""
 
@@ -99,7 +110,15 @@ class MessageViewTestCase(TestCase):
 
             self.assertEqual(resp.status_code, 200)
             self.assertIn(f'<p class="single-message">{msg.text}</p>', html)
-    
+
+            """Logout and show message"""            
+            c.get('/logout')
+            new_resp = c.get(f"/messages/{msg.id}")
+            html = new_resp.get_data(as_text=True)
+            self.assertEqual(new_resp.status_code, 200)
+            self.assertIn('<p class="single-message">', html)
+            self.assertIn('<a href="/login">Log in</a>', html)
+
     def test_delete_message(self):
         """Will deleting a message work correctly?"""
 
@@ -116,3 +135,17 @@ class MessageViewTestCase(TestCase):
             self.assertEqual(len(Message.query.all()), 0)
             self.assertEqual(resp.status_code, 200)
             self.assertIn(f'<h4 id="sidebar-username">@{self.testuser.username}</h4>', html)
+
+            """Logout and delete message -> access denied"""            
+            with c.session_transaction() as sess:
+                sess[CURR_USER_KEY] = self.testuser.id
+
+            c.post("/messages/new", data={"text": "Hello"})
+            msg = Message.query.one()
+
+            c.get('/logout')
+            new_resp = c.post(f"/messages/{msg.id}/delete", follow_redirects=True)
+            html = new_resp.get_data(as_text=True)
+            self.assertEqual(new_resp.status_code, 200)
+            self.assertIn('Access unauthorized', html)
+            self.assertEqual(len(Message.query.all()),1)
