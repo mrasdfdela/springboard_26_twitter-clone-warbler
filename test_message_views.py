@@ -71,3 +71,48 @@ class MessageViewTestCase(TestCase):
 
             msg = Message.query.one()
             self.assertEqual(msg.text, "Hello")
+
+    def test_add_message_redirect(self):
+        """Will new adding a message redirect?"""
+
+        with self.client as c:
+            with c.session_transaction() as sess:
+                sess[CURR_USER_KEY] = self.testuser.id
+
+            resp = c.post("/messages/new", data={"text": "Hello"}, follow_redirects=True)
+            html=resp.get_data(as_text=True)
+
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn("<p>Hello</p>", html)
+      
+    def test_show_message(self):
+        """Will showing a message work correctly?"""
+
+        with self.client as c:
+            with c.session_transaction() as sess:
+                sess[CURR_USER_KEY] = self.testuser.id
+
+            c.post("/messages/new", data={"text": "Hello"})
+            msg = Message.query.one()
+            resp = c.get(f"/messages/{msg.id}")
+            html = resp.get_data(as_text=True)
+
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn(f'<p class="single-message">{msg.text}</p>', html)
+    
+    def test_delete_message(self):
+        """Will deleting a message work correctly?"""
+
+        with self.client as c:
+            with c.session_transaction() as sess:
+                sess[CURR_USER_KEY] = self.testuser.id
+
+            c.post("/messages/new", data={"text": "Hello"})
+            msg = Message.query.one()
+
+            resp = c.post(f"/messages/{msg.id}/delete", follow_redirects=True)
+            html=resp.get_data(as_text=True)
+
+            self.assertEqual(len(Message.query.all()), 0)
+            self.assertEqual(resp.status_code, 200)
+            self.assertIn(f'<h4 id="sidebar-username">@{self.testuser.username}</h4>', html)
